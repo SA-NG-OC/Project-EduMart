@@ -18,10 +18,13 @@ public class User
     [Required]
     [MaxLength(20)]
     public string Role { get; set; } = String.Empty;
-    [Required] 
+    [Required]
     public DateTime CreatedAt { get; set; }
+    [MaxLength(500)]
+    public string? RefreshToken { get; set; }
+    public DateTime? RefreshTokenExpiryTime { get; set; }
     public Cart? Cart { get; set; }
-    public ICollection<Course> Courses { get; set; } =  new List<Course>();
+    public ICollection<Course> Courses { get; set; } = new List<Course>();
     public ICollection<Favorite> Favorites { get; set; } = new List<Favorite>();
     public ICollection<Review> Reviews { get; set; } = new List<Review>();
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();

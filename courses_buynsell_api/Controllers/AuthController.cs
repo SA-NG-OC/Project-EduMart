@@ -1,4 +1,5 @@
 using courses_buynsell_api.DTOs.Auth;
+using courses_buynsell_api.Exceptions;
 using courses_buynsell_api.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
@@ -19,8 +20,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Register(RegisterRequestDto dto)
     {
         var result = await _authService.RegisterAsync(dto);
-        if (result == null)
-            return BadRequest("Email already exists.");
+        SetRefreshTokenCookie(result.RefreshToken);
         return Ok(result);
     }
 
@@ -28,8 +28,32 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Login(LoginRequestDto dto)
     {
         var result = await _authService.LoginAsync(dto);
-        if (result == null)
-            return Unauthorized("Invalid credentials.");
+        SetRefreshTokenCookie(result.RefreshToken);
         return Ok(result);
+    }
+
+    [HttpPost("refresh-token")]
+    public async Task<IActionResult> RefreshToken()
+    {
+        var refreshToken = Request.Cookies["refreshToken"];
+
+        if (string.IsNullOrEmpty(refreshToken))
+            throw new UnauthorizedException("No refresh token found.");
+
+        var result = await _authService.RefreshTokenAsync(refreshToken);
+        SetRefreshTokenCookie(result.RefreshToken);
+        return Ok(result);
+    }
+
+    private void SetRefreshTokenCookie(string refreshToken)
+    {
+        var cookieOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.Strict,
+            Expires = DateTime.UtcNow.AddDays(7)
+        };
+        Response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
     }
 }

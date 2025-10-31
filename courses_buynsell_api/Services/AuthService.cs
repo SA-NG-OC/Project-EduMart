@@ -2,6 +2,7 @@ using courses_buynsell_api.Config;
 using courses_buynsell_api.Data;
 using courses_buynsell_api.DTOs.Auth;
 using courses_buynsell_api.Entities;
+using courses_buynsell_api.Exceptions;
 using courses_buynsell_api.Helpers;
 using courses_buynsell_api.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +18,7 @@ public class AuthService : IAuthService
 {
     private readonly AppDbContext _context;
     private readonly JwtSettings _jwt;
+    private readonly int _refreshTokenExpiryDays = 7;
 
     public AuthService(AppDbContext context, IOptions<JwtSettings> jwt)
     {
@@ -24,10 +26,10 @@ public class AuthService : IAuthService
         _jwt = jwt.Value;
     }
 
-    public async Task<AuthResponseDto?> RegisterAsync(RegisterRequestDto dto)
+    public async Task<AuthResponseDto> RegisterAsync(RegisterRequestDto dto)
     {
         if (await _context.Users.AnyAsync(u => u.Email == dto.Email))
-            return null;
+            throw new BadRequestException("Email already exists.");
 
         var user = new User
         {
@@ -41,19 +43,31 @@ public class AuthService : IAuthService
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
-        return GenerateJwtToken(user);
+        return await GenerateJwtToken(user);
     }
 
-    public async Task<AuthResponseDto?> LoginAsync(LoginRequestDto dto)
+    public async Task<AuthResponseDto> LoginAsync(LoginRequestDto dto)
     {
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
-        if (user == null || !PasswordHasher.VerifyPassword(dto.Password, user.PasswordHash))
-            return null;
 
-        return GenerateJwtToken(user);
+        if (user == null || !PasswordHasher.VerifyPassword(dto.Password, user.PasswordHash))
+            throw new UnauthorizedException("Invalid credentials.");
+
+        return await GenerateJwtToken(user);
     }
 
-    private AuthResponseDto GenerateJwtToken(User user)
+    public async Task<AuthResponseDto> RefreshTokenAsync(string refreshToken)
+    {
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.RefreshToken == refreshToken);
+
+        if (user == null || user.RefreshTokenExpiryTime <= DateTime.UtcNow)
+            throw new UnauthorizedException("Invalid or expired refresh token. Please log in again.");
+
+        return await GenerateJwtToken(user);
+    }
+
+    private async Task<AuthResponseDto> GenerateJwtToken(User user)
     {
         var claims = new[]
         {
@@ -73,9 +87,15 @@ public class AuthService : IAuthService
             signingCredentials: creds
         );
 
+        var refreshToken = TokenHelper.GenerateRefreshToken();
+        user.RefreshToken = refreshToken;
+        user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(_refreshTokenExpiryDays);
+        await _context.SaveChangesAsync();
+
         return new AuthResponseDto
         {
             Token = new JwtSecurityTokenHandler().WriteToken(token),
+            RefreshToken = refreshToken,
             Email = user.Email,
             FullName = user.FullName,
             Role = user.Role
