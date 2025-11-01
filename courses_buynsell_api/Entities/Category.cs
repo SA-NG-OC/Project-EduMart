@@ -11,6 +11,7 @@ public class Category
     [Required]
     [MaxLength(100)]
     public string Name { get; set; } = String.Empty;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<Course> Course { get; set; } = new List<Course>();
 }
