@@ -22,4 +22,12 @@ public class AppDbContext : DbContext
     public DbSet<TargetLearner> TargetLearners { get; set; }
     public DbSet<Transaction> Transactions { get; set; }
     public DbSet<TransactionDetail> TransactionDetails { get; set; }
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        // ✅ Composite key cho Favorite
+        modelBuilder.Entity<Favorite>()
+            .HasKey(f => new { f.UserId, f.CourseId });
+    }
 }
