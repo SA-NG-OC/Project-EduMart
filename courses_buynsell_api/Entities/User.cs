@@ -14,6 +14,8 @@ public class User
     [Required]
     [MaxLength(100)]
     public string Email { get; set; } = String.Empty;
+    [MaxLength(15)]
+    public string? PhoneNumber { get; set; }
     [Required] public string PasswordHash { get; set; } = String.Empty;
     [Required]
     [MaxLength(20)]
@@ -24,6 +26,14 @@ public class User
     public string? RefreshToken { get; set; }
     public DateTime? RefreshTokenExpiryTime { get; set; }
     public Cart? Cart { get; set; }
+    [Required]
+    public bool IsEmailVerified { get; set; }
+    [MaxLength(200)]
+    public string? EmailVerificationToken { get; set; }
+    public DateTime? EmailVerificationTokenExpiry { get; set; }
+    [MaxLength(200)]
+    public string? PasswordResetToken { get; set; }
+    public DateTime? PasswordResetTokenExpiry { get; set; }
     public ICollection<Course> Courses { get; set; } = new List<Course>();
     public ICollection<Favorite> Favorites { get; set; } = new List<Favorite>();
     public ICollection<Review> Reviews { get; set; } = new List<Review>();

@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using courses_buynsell_api.Entities;
+using courses_buynsell_api.Extensions;
 using courses_buynsell_api.Data;
 using courses_buynsell_api.Config;
 using courses_buynsell_api.Interfaces;
 using courses_buynsell_api.Services;
+using courses_buynsell_api.Middlewares;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -30,6 +32,28 @@ var jwtSettings = new JwtSettings
     Audience = Environment.GetEnvironmentVariable("JWT_AUDIENCE")!,
     ExpiryMinutes = int.Parse(Environment.GetEnvironmentVariable("JWT_EXPIRY_MINUTES")!)
 };
+
+// Đăng ký SignalR
+builder.Services.AddSignalR();
+
+// Cấu hình CORS để frontend có thể kết nối SignalR
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.WithOrigins(
+                "http://localhost:3000",
+                "http://localhost:5173",
+                "http://127.0.0.1:5500",
+                "http://localhost:5500"
+            )
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
+
+
 builder.Services.Configure<JwtSettings>(opt =>
 {
     opt.Key = jwtSettings.Key;
@@ -55,10 +79,21 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 // 🔹 Services
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+
+// Đăng ký Memory Cache
+builder.Services.AddMemoryCache();
 
 // 🔹 Controllers + Swagger
-builder.Services.AddControllers();
+builder.Services
+    .AddControllers()
+    .AddNewtonsoftJson(options =>
+    {
+        options.SerializerSettings.MissingMemberHandling = Newtonsoft.Json.MissingMemberHandling.Error;
+    });
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -69,9 +104,15 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
+// thêm middleware JWT
+app.UseMiddleware<JwtMiddleware>();
+// Sử dụng CORS
+app.UseCors("AllowAll");
+app.UseErrorHandling();
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
+// Map SignalR Hub
+//app.MapHub<NotificationHub>("/notificationHub");
 app.MapControllers();
 app.Run();

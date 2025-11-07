@@ -1,10 +1,13 @@
 using courses_buynsell_api.DTOs.Auth;
 using courses_buynsell_api.Exceptions;
 using courses_buynsell_api.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+
 using Microsoft.AspNetCore.Mvc;
 
 namespace courses_buynsell_api.Controllers;
 
+[AllowAnonymous]
 [ApiController]
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
@@ -43,6 +46,34 @@ public class AuthController : ControllerBase
         var result = await _authService.RefreshTokenAsync(refreshToken);
         SetRefreshTokenCookie(result.RefreshToken);
         return Ok(result);
+    }
+
+    [HttpGet("verify-email")]
+    public async Task<IActionResult> VerifyEmail([FromQuery] string token)
+    {
+        await _authService.VerifyEmailAsync(token);
+        return Ok(new { message = "Email verified successfully" });
+    }
+
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordDto dto)
+    {
+        await _authService.ForgotPasswordAsync(dto.Email);
+        return Ok(new { message = "Password reset email sent" });
+    }
+
+    [HttpPost("check-otp")]
+    public async Task<IActionResult> CheckOTP(CheckOTPDto dto)
+    {
+        await _authService.CheckOTPAsync(dto.Email, dto.OTP);
+        return Ok(new { message = "OTP is valid" });
+    }
+
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword(ResetPasswordDto dto)
+    {
+        await _authService.ResetPasswordAsync(dto.OTP, dto.NewPassword, dto.Email);
+        return Ok(new { message = "Password reset successfully" });
     }
 
     private void SetRefreshTokenCookie(string refreshToken)

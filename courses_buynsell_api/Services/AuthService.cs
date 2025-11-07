@@ -18,12 +18,14 @@ public class AuthService : IAuthService
 {
     private readonly AppDbContext _context;
     private readonly JwtSettings _jwt;
+    private readonly IEmailService _emailService;
     private readonly int _refreshTokenExpiryDays = 7;
 
-    public AuthService(AppDbContext context, IOptions<JwtSettings> jwt)
+    public AuthService(AppDbContext context, IOptions<JwtSettings> jwt, IEmailService emailService)
     {
         _context = context;
         _jwt = jwt.Value;
+        _emailService = emailService;
     }
 
     public async Task<AuthResponseDto> RegisterAsync(RegisterRequestDto dto)
@@ -31,27 +33,44 @@ public class AuthService : IAuthService
         if (await _context.Users.AnyAsync(u => u.Email == dto.Email))
             throw new BadRequestException("Email already exists.");
 
+        var verificationToken = TokenHelper.GenerateRefreshToken();
+
         var user = new User
         {
             FullName = dto.FullName,
             Email = dto.Email,
             PasswordHash = PasswordHasher.HashPassword(dto.Password),
             Role = "User",
+            IsEmailVerified = false,
+            EmailVerificationToken = verificationToken,
+            EmailVerificationTokenExpiry = DateTime.UtcNow.AddHours(24),
             CreatedAt = DateTime.UtcNow
         };
 
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
-        return await GenerateJwtToken(user);
-    }
+        await _emailService.SendVerificationEmailAsync(user.Email, verificationToken);
 
+        // KHÔNG TRẢ TOKEN, chỉ trả thông tin cơ bản
+        return new AuthResponseDto
+        {
+            Token = string.Empty,
+            RefreshToken = string.Empty,
+            Email = user.Email,
+            FullName = user.FullName,
+            Role = user.Role
+        };
+    }
     public async Task<AuthResponseDto> LoginAsync(LoginRequestDto dto)
     {
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
 
         if (user == null || !PasswordHasher.VerifyPassword(dto.Password, user.PasswordHash))
             throw new UnauthorizedException("Invalid credentials.");
+
+        if (!user.IsEmailVerified)
+            throw new UnauthorizedException("Please verify your email first.");
 
         return await GenerateJwtToken(user);
     }
@@ -65,6 +84,56 @@ public class AuthService : IAuthService
             throw new UnauthorizedException("Invalid or expired refresh token. Please log in again.");
 
         return await GenerateJwtToken(user);
+    }
+
+    public async Task VerifyEmailAsync(string token)
+    {
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.EmailVerificationToken == token);
+
+        if (user == null || user.EmailVerificationTokenExpiry <= DateTime.UtcNow)
+            throw new BadRequestException("Invalid or expired verification token.");
+
+        user.IsEmailVerified = true;
+        user.EmailVerificationToken = null;
+        user.EmailVerificationTokenExpiry = null;
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task ForgotPasswordAsync(string email)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+        if (user == null) return; // Don't reveal if email exists
+
+        var otp = OtpHelper.GenerateOtp(); // Tạo OTP 6 số
+        user.PasswordResetToken = otp;
+        user.PasswordResetTokenExpiry = DateTime.UtcNow.AddMinutes(15); // OTP có hiệu lực 15 phút
+        await _context.SaveChangesAsync();
+
+        await _emailService.SendPasswordResetEmailAsync(email, otp);
+    }
+
+    public async Task CheckOTPAsync(string email, string OTP)
+    {
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.Email == email && u.PasswordResetToken == OTP);
+
+        if (user == null || user.PasswordResetTokenExpiry <= DateTime.UtcNow)
+            throw new BadRequestException("Invalid or expired OTP.");
+    }
+
+    public async Task ResetPasswordAsync(string OTP, string newPassword, string email)
+    {
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.PasswordResetToken == OTP && u.Email == email);
+
+        if (user == null || user.PasswordResetTokenExpiry <= DateTime.UtcNow)
+            throw new BadRequestException("Invalid or expired reset token.");
+
+        user.PasswordHash = PasswordHasher.HashPassword(newPassword);
+        user.PasswordResetToken = null;
+        user.PasswordResetTokenExpiry = null;
+        await _context.SaveChangesAsync();
     }
 
     private async Task<AuthResponseDto> GenerateJwtToken(User user)
