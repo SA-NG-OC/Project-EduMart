@@ -24,51 +24,79 @@ namespace courses_buynsell_api.Middlewares
 
         public async Task Invoke(HttpContext context, AppDbContext dbContext)
         {
+            var path = context.Request.Path.Value?.ToLower();
+
+            // ⚠️ Bỏ qua xác thực cho các route public
+            if (path.Contains("/auth/login") ||
+                path.Contains("/auth/register") ||
+                path.Contains("/auth/refresh-token") ||
+                path.Contains("/auth/verify-email") ||
+                path.Contains("/auth/forgot-password") ||
+                path.Contains("/auth/check-otp") ||
+                path.Contains("/auth/reset-password"))
+            {
+                await _next(context);
+                return;
+            }
+
             var token = context.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
 
-            if (token != null)
-                AttachUserToContext(context, dbContext, token);
+            if (!string.IsNullOrEmpty(token))
+            {
+                // ✅ Bọc try-catch ở đây để tự trả 401 khi token invalid
+                try
+                {
+                    AttachUserToContext(context, dbContext, token);
+                }
+                catch (SecurityTokenExpiredException)
+                {
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    await context.Response.WriteAsync("Token expired");
+                    return;
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    await context.Response.WriteAsync("Invalid or unauthorized token");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    // Bất kỳ lỗi nào khác vẫn coi như 401
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    await context.Response.WriteAsync($"Token validation failed: {ex.Message}");
+                    return;
+                }
+            }
 
             await _next(context);
         }
 
         private void AttachUserToContext(HttpContext context, AppDbContext dbContext, string token)
         {
-            try
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.UTF8.GetBytes(_jwtSettings.Key);
+
+            tokenHandler.ValidateToken(token, new TokenValidationParameters
             {
-                var tokenHandler = new JwtSecurityTokenHandler();
-                var key = Encoding.UTF8.GetBytes(_jwtSettings.Key);
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(key),
+                ValidateIssuer = false,
+                ValidateAudience = false,
+                ClockSkew = TimeSpan.Zero // Không cho phép trễ thời gian
+            }, out SecurityToken validatedToken);
 
-                tokenHandler.ValidateToken(token, new TokenValidationParameters
-                {
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(key),
-                    ValidateIssuer = false,
-                    ValidateAudience = false,
-                    ClockSkew = TimeSpan.Zero
-                }, out SecurityToken validatedToken);
+            var jwtToken = (JwtSecurityToken)validatedToken;
+            var userIdStr = jwtToken.Claims.First(x => x.Type == "id").Value;
 
-                var jwtToken = (JwtSecurityToken)validatedToken;
-                var userIdStr = jwtToken.Claims.First(x => x.Type == "id").Value;
-                if (int.TryParse(userIdStr, out var userId))
-                {
-                    // Lưu int (không còn kiểu string)
-                    context.Items["UserId"] = userId;
-                    Console.WriteLine("Authenticated User ID: " + userId);
-                }
-                else
-                {
-                    // Nếu không parse được, bỏ qua (không throw)
-                    Console.WriteLine("Failed to parse user id claim: " + userIdStr);
-                }
-
-                // Gắn user vào context để controller có thể lấy ra
+            if (int.TryParse(userIdStr, out var userId))
+            {
                 context.Items["UserId"] = userId;
-                Console.WriteLine("Authenticated User ID: " + userId);
+                Console.WriteLine($"Authenticated User ID: {userId}");
             }
-            catch
+            else
             {
-                throw new UnauthorizedAccessException("Invalid Token");
+                throw new UnauthorizedAccessException("Invalid user ID in token");
             }
         }
     }
