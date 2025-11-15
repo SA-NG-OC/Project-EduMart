@@ -34,6 +34,8 @@ public class User
     [MaxLength(200)]
     public string? PasswordResetToken { get; set; }
     public DateTime? PasswordResetTokenExpiry { get; set; }
+    [MaxLength(300)]
+    public string? AvatarUrl { get; set; }
     public ICollection<Course> Courses { get; set; } = new List<Course>();
     public ICollection<Favorite> Favorites { get; set; } = new List<Favorite>();
     public ICollection<Review> Reviews { get; set; } = new List<Review>();
