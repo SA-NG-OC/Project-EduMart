@@ -40,7 +40,7 @@ public class AuthService : IAuthService
             FullName = dto.FullName,
             Email = dto.Email,
             PasswordHash = PasswordHasher.HashPassword(dto.Password),
-            Role = "User",
+            Role = dto.Role,
             IsEmailVerified = false,
             EmailVerificationToken = verificationToken,
             EmailVerificationTokenExpiry = DateTime.UtcNow.AddHours(24),
@@ -67,7 +67,7 @@ public class AuthService : IAuthService
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
 
         if (user == null || !PasswordHasher.VerifyPassword(dto.Password, user.PasswordHash))
-            throw new UnauthorizedException("Invalid credentials.");
+            throw new UnauthorizedException("Incorrect email or password.");
 
         if (!user.IsEmailVerified)
             throw new UnauthorizedException("Please verify your email first.");
@@ -82,7 +82,6 @@ public class AuthService : IAuthService
 
         if (user == null || user.RefreshTokenExpiryTime <= DateTime.UtcNow)
             throw new UnauthorizedException("Invalid or expired refresh token. Please log in again.");
-
         return await GenerateJwtToken(user);
     }
 
@@ -136,6 +135,26 @@ public class AuthService : IAuthService
         await _context.SaveChangesAsync();
     }
 
+    public async Task<UserProfileDto> GetCurrentUserAsync(int userId)
+    {
+        var user = await _context.Users
+            .Where(u => u.Id == userId)
+            .Select(u => new UserProfileDto
+            {
+                Id = u.Id,
+                Email = u.Email,
+                FullName = u.FullName,
+                Role = u.Role,
+                IsEmailVerified = u.IsEmailVerified
+            })
+            .FirstOrDefaultAsync();
+
+        if (user == null)
+            throw new NotFoundException("User not found.");
+
+        return user;
+    }
+
     private async Task<AuthResponseDto> GenerateJwtToken(User user)
     {
         var claims = new[]
@@ -167,7 +186,28 @@ public class AuthService : IAuthService
             RefreshToken = refreshToken,
             Email = user.Email,
             FullName = user.FullName,
-            Role = user.Role
+            Role = user.Role,
+            PhoneNumber = string.IsNullOrEmpty(user.PhoneNumber) ? "" : user.PhoneNumber,
+            Image = string.IsNullOrEmpty(user.AvatarUrl) ? "" : user.AvatarUrl
         };
     }
+
+    public async Task ResendVerificationEmailAsync(string email)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+
+        if (user == null) return; // Không lộ info email tồn tại hay không
+        if (user.IsEmailVerified) return; // Đã verify thì không gửi nữa
+
+        // Tạo token mới
+        var newToken = TokenHelper.GenerateRefreshToken();
+        user.EmailVerificationToken = newToken;
+        user.EmailVerificationTokenExpiry = DateTime.UtcNow.AddHours(24);
+
+        await _context.SaveChangesAsync();
+
+        // Gửi email
+        await _emailService.SendVerificationEmailAsync(user.Email, newToken);
+    }
+
 }
