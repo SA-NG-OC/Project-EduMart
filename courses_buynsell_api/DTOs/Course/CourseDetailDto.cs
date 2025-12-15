@@ -8,5 +8,5 @@ public class CourseDetailDto : CourseListItemDto
     
     public List<CourseContentDto>? CourseContents { get; set; }
     public List<SkillTargetDto>? CourseSkills { get; set; }
-    public List<SkillTargetDto>? TargetLearners { get; set; }
+    public List<TargetLearnerDto>? TargetLearners { get; set; }
 }

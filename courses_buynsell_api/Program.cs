@@ -1,19 +1,20 @@
-using Microsoft.EntityFrameworkCore;
+using courses_buynsell_api.Config;
+using courses_buynsell_api.Data;
+using courses_buynsell_api.DTOs.Momo;
 using courses_buynsell_api.Entities;
 using courses_buynsell_api.Extensions;
-using courses_buynsell_api.Data;
-using courses_buynsell_api.Config;
-using courses_buynsell_api.Interfaces;
-using courses_buynsell_api.Services;
-using courses_buynsell_api.Middlewares;
-using courses_buynsell_api.DTOs.Momo;
 using courses_buynsell_api.Hubs;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
+using courses_buynsell_api.Interfaces;
+using courses_buynsell_api.Middlewares;
+using courses_buynsell_api.Services;
 using DotNetEnv;
-using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -143,6 +144,7 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IImageService, ImageService>();
+builder.Services.AddScoped<ICourseService, CourseService>();
 
 // Đăng ký Memory Cache
 builder.Services.AddMemoryCache();
@@ -156,7 +158,33 @@ builder.Services
     });
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(option =>
+{
+    option.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        In = ParameterLocation.Header,
+        Description = "Vui lòng nhập token vào ô bên dưới (không cần gõ chữ 'Bearer ')",
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        BearerFormat = "JWT",
+        Scheme = "Bearer"
+    });
+
+    option.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[]{}
+        }
+    });
+});
 
 var app = builder.Build();
 

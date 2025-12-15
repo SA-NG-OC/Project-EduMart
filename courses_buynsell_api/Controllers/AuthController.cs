@@ -30,9 +30,16 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginRequestDto dto)
     {
-        var result = await _authService.LoginAsync(dto);
-        SetRefreshTokenCookie(result.RefreshToken);
-        return Ok(result);
+        try
+            {
+            var result = await _authService.LoginAsync(dto);
+            SetRefreshTokenCookie(result.RefreshToken);
+            return Ok(result);
+        }
+        catch (UnauthorizedException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
     }
 
     [HttpPost("refresh-token")]
