@@ -1,13 +1,16 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace courses_buynsell_api.Entities;
 
-public class Favorite
+public class History
 {
+    [Required]
     public int UserId { get; set; }
     public User? User { get; set; }
 
+    [Required]
     public int CourseId { get; set; }
     public Course? Course { get; set; }
+
+    public DateTime CreatedAt { get; set; }
 }

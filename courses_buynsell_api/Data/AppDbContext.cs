@@ -22,12 +22,25 @@ public class AppDbContext : DbContext
     public DbSet<TargetLearner> TargetLearners { get; set; }
     public DbSet<Transaction> Transactions { get; set; }
     public DbSet<TransactionDetail> TransactionDetails { get; set; }
+    public DbSet<Conversation> Conversations { get; set; }
+    public DbSet<Message> Messages { get; set; }
+    public DbSet<History> Histories { get; set; }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
+        modelBuilder.Entity<Conversation>()
+        .Property(c => c.IsVisible)
+        .HasDefaultValue(true);
+
+        modelBuilder.Entity<Category>()
+        .HasIndex(c => c.Name)
+        .IsUnique();
+
         // ✅ Composite key cho Favorite
         modelBuilder.Entity<Favorite>()
             .HasKey(f => new { f.UserId, f.CourseId });
+        modelBuilder.Entity<History>()
+            .HasKey(h => new { h.UserId, h.CourseId });
     }
 }
