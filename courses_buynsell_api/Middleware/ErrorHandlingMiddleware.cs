@@ -113,8 +113,13 @@ public class ErrorHandlingMiddleware
         }
     }
 
-    private static Task HandleExceptionAsync(HttpContext context, Exception exception)
+    private static async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
+        if (context.Response.HasStarted)
+        {
+            Console.WriteLine("Response has already started, cannot write custom error message.");
+            return;
+        }
         var statusCode = exception switch
         {
             BadRequestException => HttpStatusCode.BadRequest,
@@ -138,7 +143,7 @@ public class ErrorHandlingMiddleware
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = (int)statusCode;
 
-        return context.Response.WriteAsync(JsonSerializer.Serialize(response));
+        await context.Response.WriteAsync(JsonSerializer.Serialize(response));
     }
 
     private static async Task WriteCustomErrorResponse(HttpContext context, Stream originalBodyStream,
