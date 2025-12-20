@@ -121,7 +121,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> CheckOTP(CheckOTPDto dto)
     {
         await _authService.CheckOTPAsync(dto.Email, dto.OTP);
-        return Ok(new { message = "OTP không hợp lệ. });
+        return Ok(new { message = "OTP không hợp lệ." });
     }
 
     [HttpPost("reset-password")]
