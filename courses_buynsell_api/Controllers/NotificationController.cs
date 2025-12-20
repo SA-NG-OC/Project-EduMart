@@ -8,7 +8,7 @@ namespace courses_buynsell_api.Controllers;
 
 [ApiController]
 [Route("[controller]")]
-[Authorize]
+//[Authorize]
 public class NotificationController : ControllerBase
 {
     private readonly INotificationService _notificationService;
@@ -20,6 +20,7 @@ public class NotificationController : ControllerBase
 
     // GET: /notification/
     [HttpGet]
+    [Authorize(Roles = "Seller")]
     public async Task<ActionResult<IEnumerable<NotificationDto>>> GetNotifications()
     {
         int sellerId = HttpContext.Items["UserId"] as int? ?? -1;
@@ -29,6 +30,7 @@ public class NotificationController : ControllerBase
 
     // GET: /notification/unread-count/
     [HttpGet("unread-count")]
+    [Authorize(Roles = "Seller")]
     public async Task<ActionResult<int>> GetUnreadCount()
     {
         int sellerId = HttpContext.Items["UserId"] as int? ?? -1;
@@ -46,8 +48,14 @@ public class NotificationController : ControllerBase
 
     // PUT: /notification/mark-as-read/{notificationId}
     [HttpPut("mark-as-read/{notificationId}")]
-    public async Task<ActionResult> MarkAsRead(int notificationId, [FromQuery] int sellerId)
+    [Authorize(Roles = "Seller")]
+    public async Task<ActionResult> MarkAsRead(int notificationId)
     {
+        int sellerId = HttpContext.Items["UserId"] as int? ?? -1;
+        if (sellerId == -1)
+        {
+            return Unauthorized(new { message = "User not authenticated." });
+        }
         var result = await _notificationService.MarkAsReadAsync(notificationId, sellerId);
 
         if (!result)
@@ -58,6 +66,7 @@ public class NotificationController : ControllerBase
 
     // PUT: /notification/mark-all-as-read/
     [HttpPut("mark-all-as-read")]
+    [Authorize(Roles = "Seller")]
     public async Task<ActionResult> MarkAllAsRead()
     {
         int sellerId = HttpContext.Items["UserId"] as int? ?? -1;
@@ -67,8 +76,14 @@ public class NotificationController : ControllerBase
 
     // DELETE: /notification/{notificationId}
     [HttpDelete("{notificationId}")]
-    public async Task<ActionResult> DeleteNotification(int notificationId, [FromQuery] int sellerId)
+    [Authorize(Roles = "Seller")]
+    public async Task<ActionResult> DeleteNotification(int notificationId)
     {
+        int sellerId = HttpContext.Items["UserId"] as int? ?? -1;
+        if (sellerId == -1)
+        {
+            return Unauthorized(new { message = "User not authenticated." });
+        }
         var result = await _notificationService.DeleteNotificationAsync(notificationId, sellerId);
 
         if (!result)
@@ -79,6 +94,7 @@ public class NotificationController : ControllerBase
 
     // DELETE: /notification/delete-all/{sellerId}
     [HttpDelete("delete-all/")]
+    [Authorize(Roles = "Seller")]
     public async Task<ActionResult> DeleteAllNotifications()
     {
         int sellerId = HttpContext.Items["UserId"] as int? ?? -1;

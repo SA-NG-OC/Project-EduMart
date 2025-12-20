@@ -21,6 +21,7 @@ public class CourseQueryParameters
     public decimal? MaxPrice { get; set; }
     public string? SortBy { get; set; } = "newest";
     public string? Level { get; set; }
-    public bool IncludeUnapproved { get; set; } = false; // admin
+    public bool? IncludeUnapproved { get; set; } // admin
+    public bool? IncludeRestricted { get; set; }
 
 }

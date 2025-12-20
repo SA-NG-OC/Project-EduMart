@@ -1,6 +1,7 @@
 using courses_buynsell_api.DTOs.User;
 using courses_buynsell_api.Entities;
 using courses_buynsell_api.DTOs;
+using courses_buynsell_api.DTOs.Course;
 
 namespace courses_buynsell_api.Interfaces;
 
@@ -14,4 +15,5 @@ public interface IUserService
     Task ChangeUserPasswordAsync(ChangeUserPasswordRequest request, int userId);
     Task<PagedResult<UserListDto>> GetUsersByRoleAsync(string role, int page, int pageSize);
     Task<UserStatisticsDto> GetUserStatisticsAsync();
+    Task<PagedResult<CourseListItemUserDto>> GetMyCourses(CourseQueryParameters q, int userId);
 }

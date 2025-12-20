@@ -25,6 +25,7 @@ namespace courses_buynsell_api.DTOs.User
 
         [JsonProperty("avatar")]
         public IFormFile? Avatar { get; set; }
+        public bool deleteImage { get; set; } = false;
 
         // ✅ Custom validation: ít nhất phải có 1 trường hợp được gửi lên để update
         public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)

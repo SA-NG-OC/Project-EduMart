@@ -17,7 +17,7 @@ public class CategoryController : ControllerBase
         _categoryService = categoryService;
     }
     [HttpGet]
-    [Authorize(Roles = "Admin")]
+    //[Authorize(Roles = "Admin, Seller")]
     public async Task<IActionResult> GetAllCategories()
     {
         try
@@ -91,6 +91,10 @@ public class CategoryController : ControllerBase
         catch (NotFoundException ex)
         {
             return NotFound(new { message = ex.Message });
+        }
+        catch (BadRequestException ex)
+        {
+            return StatusCode(400, new { message = ex.Message });
         }
         catch (Exception ex)
         {

@@ -41,7 +41,7 @@ public class AuthService : IAuthService
             Email = dto.Email,
             PasswordHash = PasswordHasher.HashPassword(dto.Password),
             Role = dto.Role,
-            IsEmailVerified = true,
+            IsEmailVerified = false,
             EmailVerificationToken = verificationToken,
             EmailVerificationTokenExpiry = DateTime.UtcNow.AddHours(24),
             CreatedAt = DateTime.UtcNow
@@ -50,7 +50,7 @@ public class AuthService : IAuthService
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
-        //await _emailService.SendVerificationEmailAsync(user.Email, verificationToken);
+        await _emailService.SendVerificationEmailAsync(user.Email, verificationToken);
 
         // KHÔNG TRẢ TOKEN, chỉ trả thông tin cơ bản
         return new AuthResponseDto
@@ -184,6 +184,7 @@ public class AuthService : IAuthService
         {
             Token = new JwtSecurityTokenHandler().WriteToken(token),
             RefreshToken = refreshToken,
+            Id = user.Id,
             Email = user.Email,
             FullName = user.FullName,
             Role = user.Role,

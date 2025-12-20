@@ -191,9 +191,10 @@ public class DashboardService : IDashboardService
 
         var totalStudents = courses.Sum(c => c.TotalPurchased);
 
-        var avgRating = courses.Any()
-            ? courses.Average(c => c.AverageRating)
+        var avgRating = courses.Any(c => c.AverageRating > 0)
+            ? courses.Where(c => c.AverageRating > 0).Average(c => c.AverageRating)
             : 0;
+
 
         return new SellerStatsDto
         {
@@ -228,20 +229,34 @@ public class DashboardService : IDashboardService
         var ownsCourse = await _context.Courses
             .AnyAsync(c => c.Id == courseId && c.SellerId == sellerId);
 
-        if (!ownsCourse)
+        var role = await _context.Users
+            .Where(u => u.Id == sellerId)
+            .Select(u => u.Role)
+            .FirstOrDefaultAsync();
+
+        var isAdmin = role != null && role.Equals("Admin", StringComparison.OrdinalIgnoreCase);
+
+        if (!ownsCourse && role != "Admin")
             throw new UnauthorizedAccessException("You do not have permission to view this course’s revenue.");
 
         var twelveMonthsAgo = DateTime.UtcNow.AddMonths(-11);
 
-        var result = await _context.TransactionDetails
-            .Include(td => td.Transaction)
-            .Include(td => td.Course)
-            .Where(td =>
-                td.CourseId == courseId &&
-                td.Course!.SellerId == sellerId &&
-                td.Transaction != null &&
-                td.Transaction.CreatedAt >= twelveMonthsAgo
-            )
+        var query = _context.TransactionDetails
+        .Include(td => td.Transaction)
+        .Include(td => td.Course)
+        .Where(td =>
+            td.CourseId == courseId &&
+            td.Transaction != null &&
+            td.Transaction.CreatedAt >= twelveMonthsAgo
+        );
+
+        if (!isAdmin)
+        {
+            // Seller chỉ thấy của mình
+            query = query.Where(td => td.Course!.SellerId == sellerId);
+        }
+
+        var result = await query
             .GroupBy(td => new { td.Transaction!.CreatedAt.Year, td.Transaction.CreatedAt.Month })
             .Select(g => new MonthlyRevenueDto
             {
@@ -267,23 +282,43 @@ public class DashboardService : IDashboardService
         if (sellerId <= 0)
             throw new UnauthorizedAccessException("Invalid seller ID.");
 
-        // ✅ Kiểm tra xem course có thuộc seller đang đăng nhập không
-        var ownsCourse = await _context.Courses
-            .AnyAsync(c => c.Id == courseId && c.SellerId == sellerId);
+        // Lấy role của user
+        var role = await _context.Users
+                    .Where(u => u.Id == sellerId)
+                    .Select(u => u.Role)
+                    .FirstOrDefaultAsync();
 
-        if (!ownsCourse)
-            throw new UnauthorizedAccessException("You do not have permission to view this course’s reviews.");
+        var isAdmin = role == "Admin";
 
-        // ✅ Lấy dữ liệu review thực tế
-        var reviewGroups = await _context.Reviews
+        // Kiểm tra quyền nếu là Seller
+        if (!isAdmin)
+        {
+            var ownsCourse = await _context.Courses
+                .AnyAsync(c => c.Id == courseId && c.SellerId == sellerId);
+
+            if (!ownsCourse)
+                throw new UnauthorizedAccessException("You do not have permission to view this course’s reviews.");
+        }
+
+        // Query cơ bản
+        var reviewQuery = _context.Reviews
             .Include(r => r.Course)
-            .Where(r => r.CourseId == courseId && r.Course!.SellerId == sellerId)
+            .Where(r => r.CourseId == courseId);
+
+        // Nếu là Seller → chỉ xem review cho course của Seller
+        if (!isAdmin)
+        {
+            reviewQuery = reviewQuery.Where(r => r.Course!.SellerId == sellerId);
+        }
+
+        // Group theo sao
+        var reviewGroups = await reviewQuery
             .GroupBy(r => r.Star)
             .Select(g => new { Star = g.Key, Count = g.Count() })
             .ToListAsync();
 
-        // ✅ Luôn trả đủ từ 1 → 5 sao
-        var result = Enumerable.Range(1, 5)
+        // Trả đủ 1 → 5 sao
+        return Enumerable.Range(1, 5)
             .Select(star => new ReviewStarCountDto
             {
                 Star = star,
@@ -291,9 +326,8 @@ public class DashboardService : IDashboardService
             })
             .OrderByDescending(x => x.Star)
             .ToList();
-
-        return result;
     }
+
 
     public async Task<List<DailyRevenueDto>> GetRevenueLast7DaysAsync()
     {

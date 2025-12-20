@@ -1,20 +1,19 @@
-using courses_buynsell_api.Config;
-using courses_buynsell_api.Data;
-using courses_buynsell_api.DTOs.Momo;
+using Microsoft.EntityFrameworkCore;
 using courses_buynsell_api.Entities;
 using courses_buynsell_api.Extensions;
-using courses_buynsell_api.Hubs;
+using courses_buynsell_api.Data;
+using courses_buynsell_api.Config;
 using courses_buynsell_api.Interfaces;
-using courses_buynsell_api.Middlewares;
 using courses_buynsell_api.Services;
-using DotNetEnv;
+using courses_buynsell_api.Middlewares;
+using courses_buynsell_api.DTOs.Momo;
+using courses_buynsell_api.Hubs;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
 using System.Text;
+using DotNetEnv;
+using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -72,7 +71,12 @@ var jwtSettings = new JwtSettings
 };
 
 // Đăng ký SignalR
-builder.Services.AddSignalR();
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = true; // Bật để debug dễ hơn
+    options.KeepAliveInterval = TimeSpan.FromSeconds(10);
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
+});
 
 // Cấu hình CORS để frontend có thể kết nối SignalR
 builder.Services.AddCors(options =>
@@ -81,9 +85,11 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(
                 "http://localhost:3000",
+                "http://localhost:5174",
                 "http://localhost:5173",
                 "http://127.0.0.1:5500",
-                "http://localhost:5500"
+                "http://localhost:5500",
+                "null" // Thêm để support file:// protocol khi test HTML
             )
             .AllowAnyHeader()
             .AllowAnyMethod()
@@ -129,6 +135,26 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = jwtSettings.Audience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key))
         };
+
+        // ⭐⭐⭐ QUAN TRỌNG: Thêm phần này để SignalR nhận JWT token ⭐⭐⭐
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                // SignalR gửi token qua query string thay vì header
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+
+                // Nếu request đến ChatHub hoặc NotificationHub, lấy token từ query
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    (path.StartsWithSegments("/chatHub") ||
+                     path.StartsWithSegments("/notificationHub")))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
     });
 
 // 🔹 Services
@@ -138,13 +164,15 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IFavoriteService, FavoriteService>();
-builder.Services.AddScoped<ICheckoutService, CheckoutService>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<ICourseService, CourseService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IImageService, ImageService>();
-builder.Services.AddScoped<ICourseService, CourseService>();
+
+// ⭐ Thêm ChatService - QUAN TRỌNG!
+builder.Services.AddScoped<IChatService, ChatService>();
 
 // Đăng ký Memory Cache
 builder.Services.AddMemoryCache();
@@ -158,33 +186,7 @@ builder.Services
     });
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(option =>
-{
-    option.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        In = ParameterLocation.Header,
-        Description = "Vui lòng nhập token vào ô bên dưới (không cần gõ chữ 'Bearer ')",
-        Name = "Authorization",
-        Type = SecuritySchemeType.Http,
-        BearerFormat = "JWT",
-        Scheme = "Bearer"
-    });
-
-    option.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            new string[]{}
-        }
-    });
-});
+builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
@@ -194,15 +196,16 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+
+app.UseErrorHandling();
 app.UseHttpsRedirection();
 // Sử dụng CORS
+// ✅ Thứ tự middleware ĐÚNG
 app.UseCors("AllowAll");
-// thêm middleware JWT
-app.UseMiddleware<JwtMiddleware>();
-app.UseErrorHandling();
 app.UseAuthentication();
 app.UseAuthorization();
-// Map SignalR Hub
-app.MapHub<NotificationHub>("/notificationHub");
+app.UseMiddleware<JwtMiddleware>();
 app.MapControllers();
+app.MapHub<NotificationHub>("/notificationHub");
+app.MapHub<ChatHub>("/chathub");
 app.Run();

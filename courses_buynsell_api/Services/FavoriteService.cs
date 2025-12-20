@@ -21,7 +21,9 @@ namespace courses_buynsell_api.Services
             {
                 return await _context.Favorites
                     .Where(f => f.UserId == userId)
+                    .Where(f => f.Course!.IsApproved && !f.Course.IsRestricted)
                     .Include(f => f.Course)
+                    .Include(f => f.Course!.Category)
                     .Select(f => new FavoriteCourseResponse
                     {
                         UserId = f.UserId,
@@ -34,7 +36,8 @@ namespace courses_buynsell_api.Services
                         DurationHours = f.Course.DurationHours,
                         Price = f.Course.Price,
                         Level = f.Course.Level,
-                        ImageUrlUrl = f.Course.ImageUrl
+                        ImageUrl = f.Course.ImageUrl,
+                        CategoryName = f.Course.Category!.Name
                     })
                     .ToListAsync();
             }
@@ -51,18 +54,31 @@ namespace courses_buynsell_api.Services
 
         public async Task<bool> AddFavoriteAsync(int userId, int courseId)
         {
-            // Kiểm tra đã tồn tại chưa (tránh trùng khóa học yêu thích)
+            // Lấy khóa học và kiểm tra hợp lệ
+            var course = await _context.Courses
+                .FirstOrDefaultAsync(c => c.Id == courseId);
+
+            if (course == null)
+                return false;
+
+            // KHÔNG CHO PHÉP THÊM nếu khóa chưa duyệt hoặc bị hạn chế
+            if (!course.IsApproved || course.IsRestricted)
+                return false;
+
+            // Kiểm tra đã tồn tại trong favorites chưa
             var existingFavorite = await _context.Favorites
                 .FirstOrDefaultAsync(f => f.UserId == userId && f.CourseId == courseId);
+
             if (existingFavorite != null)
-            {
-                return false; // Đã tồn tại
-            }
+                return false;
+
+            // Thêm mới
             var favorite = new Favorite
             {
                 UserId = userId,
                 CourseId = courseId
             };
+
             _context.Favorites.Add(favorite);
             await _context.SaveChangesAsync();
             return true;

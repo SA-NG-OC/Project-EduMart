@@ -61,7 +61,8 @@ public class NotificationService : INotificationService
             Id = notification.Id,
             Message = notification.Message,
             CreatedAt = notification.CreatedAt,
-            IsRead = notification.IsRead
+            IsRead = notification.IsRead,
+            SellerId = notification.SellerId
         };
 
         // Gửi thông báo real-time đến group của seller

@@ -2,6 +2,7 @@ using courses_buynsell_api.DTOs.Category;
 using courses_buynsell_api.Data;
 using courses_buynsell_api.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using courses_buynsell_api.Exceptions;
 namespace courses_buynsell_api.Services;
 
 public class CategoryService : ICategoryService
@@ -58,14 +59,31 @@ public class CategoryService : ICategoryService
 
     public async Task DeleteCategoryAsync(int id)
     {
+        // ID danh mục fallback (Khác)
+        const int fallbackCategoryId = 1;
+
+        // Không cho xóa chính danh mục fallback
+        if (id == fallbackCategoryId)
+            throw new BadRequestException("Không thể xóa danh mục mặc định.");
+
         var category = await _context.Categories.FindAsync(id);
         if (category == null)
-        {
-            throw new Exception("Category not found.");
-        }
+            throw new BadRequestException("Category not found.");
 
+        // 1. Update tất cả Course đang thuộc category này → sang category Khác
+        var courses = await _context.Courses
+            .Where(c => c.CategoryId == id)
+            .ToListAsync();
+
+        foreach (var c in courses)
+            c.CategoryId = fallbackCategoryId;
+
+        // 2. Xóa danh mục
         _context.Categories.Remove(category);
+
+        // 3. Lưu thay đổi
         await _context.SaveChangesAsync();
     }
+
 
 }

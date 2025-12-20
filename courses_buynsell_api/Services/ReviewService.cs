@@ -113,6 +113,30 @@ public class ReviewService : IReviewService
     */
     public async Task CreateReview(ReviewRequestDto reviewDto, int buyerId)
     {
+        // 0. Lấy role của user
+        var user = await _context.Users
+            .Where(u => u.Id == buyerId)
+            .Select(u => new { u.Id, u.Role })
+            .FirstOrDefaultAsync();
+
+        if (user == null)
+            throw new NotFoundException("User not found");
+
+        bool isAdmin = user.Role == "Admin";
+
+        // 1. Kiểm tra mua khóa học nếu không phải admin
+        if (!isAdmin)
+        {
+            bool hasBought = await _context.Enrollments
+                .AnyAsync(e => e.BuyerId == buyerId && e.CourseId == reviewDto.CourseId);
+
+            if (!hasBought)
+            {
+                throw new BadRequestException("Bạn chưa mua khóa học này nên không thể đánh giá.");
+            }
+        }
+
+        // 2. Tạo review
         var review = new Review
         {
             BuyerId = buyerId,
@@ -125,6 +149,7 @@ public class ReviewService : IReviewService
         _context.Reviews.Add(review);
         await _context.SaveChangesAsync();
     }
+
 
     /*
     Phương thức PUT

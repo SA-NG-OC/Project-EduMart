@@ -9,4 +9,5 @@ public class AuthResponseDto
     public string Role { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
     public string Image { get; set; } = string.Empty;
+    public int Id { get; set; }
 }

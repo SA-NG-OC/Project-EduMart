@@ -23,7 +23,7 @@ namespace courses_buynsell_api.DTOs.Auth
         public string Password { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Role is required.")]
-        [RegularExpression(@"^(Buyer|Seller|Admin)$", ErrorMessage = "Role must be either 'Buyer' or 'Seller'.")]
+        [RegularExpression(@"^(Buyer|Seller)$", ErrorMessage = "Role must be either 'Buyer' or 'Seller'.")]
         public string Role { get; set; } = string.Empty;
     }
 }
