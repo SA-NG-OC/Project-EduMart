@@ -7,25 +7,16 @@ namespace courses_buynsell_api.Interfaces
     public interface ICourseService
     {
         // Lấy danh sách khóa học (Public) có phân trang và bộ lọc tìm kiếm
-        Task<PagedResult<CourseListItemDto>> GetAllCoursesAsync(
-            string? keyword,
-            int? categoryId,
-            string? level,       
-            bool? isApproved,
-            decimal? minPrice,
-            decimal? maxPrice,
-            int page,
-            int pageSize
-        );
+        Task<PagedResult<CourseListItemDto>> GetCoursesAsync(CourseQueryParameters query);
 
         // Lấy chi tiết một khóa học
-        Task<CourseDetailDto> GetCourseByIdAsync(int id);
+        Task<CourseDetailDto?> GetByIdAsync(int id, int userId);
 
         // Tạo khóa học mới (cần ID người tạo)
-        Task<CourseDetailDto> CreateCourseAsync(int sellerId, CreateCourseDto request);
+        Task<CourseDetailDto> CreateAsync(CreateCourseDto dto, int userId);
 
         // Cập nhật khóa học (cần ID khóa học, ID người sửa để check quyền, và data sửa)
-        Task<CourseDetailDto> UpdateCourseAsync(int courseId, int sellerId, UpdateCourseDto request);
+        Task<CourseDetailDto?> UpdateAsync(int id, UpdateCourseDto dto, int sellerId);
 
         // Xóa khóa học
         Task DeleteCourseAsync(int courseId, int userId);

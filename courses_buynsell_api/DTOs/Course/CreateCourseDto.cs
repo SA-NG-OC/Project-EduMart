@@ -1,5 +1,4 @@
-﻿using courses_buynsell_api.Entities;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace courses_buynsell_api.DTOs.Course;
 
@@ -9,11 +8,12 @@ public class CreateCourseDto
     [Required] public string TeacherName { get; set; } = string.Empty;
     public string? Description { get; set; }
     [Range(0, double.MaxValue)] public decimal Price { get; set; }
-    [Required] public string Level { get; set; } = string.Empty;
-    [Required] public IFormFile? Image { get; set; }
-    [Required] public int DurationHours { get; set; }
-    [Required] public string Category { get; set; } = string.Empty;
+    public string Level { get; set; } = string.Empty;
+    public IFormFile? Image { get; set; }
+    public int DurationHours { get; set; }
+    public string CourseLecture { get; set; } = string.Empty;
+    public int CategoryId { get; set; }
     public List<CourseContentDto>? CourseContents { get; set; }
     public List<SkillTargetDto>? CourseSkills { get; set; }
-    public List<TargetLearnerDto>? TargetLearners { get; set; }
+    public List<SkillTargetDto>? TargetLearners { get; set; }
 }

@@ -1,5 +1,5 @@
-﻿using courses_buynsell_api.DTOs.Course; 
-using courses_buynsell_api.Exceptions;  
+﻿using courses_buynsell_api.DTOs.Course;
+using courses_buynsell_api.Exceptions;
 using courses_buynsell_api.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -8,7 +8,7 @@ namespace courses_buynsell_api.Controllers
 {
     [Authorize]
     [ApiController]
-    [Route("/[controller]")]
+    [Route("api/[controller]")]
     public class CourseController : ControllerBase
     {
         private readonly ICourseService _courseService;
@@ -18,32 +18,30 @@ namespace courses_buynsell_api.Controllers
             _courseService = courseService;
         }
 
-        // GET: /Course
+        // GET: api/Course/all
         // Cho phép xem danh sách khóa học mà không cần đăng nhập
+        [HttpGet("all")]
         [AllowAnonymous]
-        [HttpGet]
-        public async Task<IActionResult> GetAllCourses(
-            [FromQuery] string? keyword,
-            [FromQuery] int? categoryId,
-            [FromQuery] string? level,
-            [FromQuery] bool? isApproved,
-            [FromQuery] decimal? minPrice,
-            [FromQuery] decimal? maxPrice,
-            [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 10)
+        public async Task<IActionResult> GetAnonymously([FromQuery] CourseQueryParameters queryParameters)
         {
-            try
-            {
-                var result = await _courseService.GetAllCoursesAsync(keyword, categoryId, level, isApproved, minPrice, maxPrice, page, pageSize);
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = ex.Message });
-            }
+            if (((queryParameters.IncludeRestricted ?? false) || (queryParameters.IncludeUnapproved ?? false)))
+                return BadRequest();
+            var result = await _courseService.GetCoursesAsync(queryParameters);
+            return Ok(result);
         }
 
-        // GET: /Course/{id}
+        [HttpGet]
+        [Authorize(Roles = "Admin, Buyer, Seller")]
+        public async Task<IActionResult> Get([FromQuery] CourseQueryParameters queryParameters)
+        {
+            if (((queryParameters.IncludeRestricted ?? false) || (queryParameters.IncludeUnapproved ?? false))
+                && User.IsInRole("Buyer"))
+                return BadRequest("Buyer can not get restricted or unapproved courses");
+            var result = await _courseService.GetCoursesAsync(queryParameters);
+            return Ok(result);
+        }
+
+        // GET: api/Course/{id}
         // Xem chi tiết khóa học
         [AllowAnonymous]
         [HttpGet("{id}")]
@@ -51,7 +49,15 @@ namespace courses_buynsell_api.Controllers
         {
             try
             {
-                var course = await _courseService.GetCourseByIdAsync(id);
+                int userId = 0;
+                var Id = User.FindFirst("id")?.Value;
+                if (Id != null)
+                {
+                    userId = int.Parse(Id);
+                }
+
+                var course = await _courseService.GetByIdAsync(id, userId);
+                if (course == null) return NotFound();
                 return Ok(course);
             }
             catch (NotFoundException ex)
@@ -64,8 +70,9 @@ namespace courses_buynsell_api.Controllers
             }
         }
 
-        // POST: /Course
+        // POST: api/Course
         // Người dùng tạo khóa học 
+
         [Authorize(Roles = "Admin, Seller")]
         [HttpPost]
         public async Task<IActionResult> CreateCourse([FromForm] CreateCourseDto request)
@@ -78,7 +85,7 @@ namespace courses_buynsell_api.Controllers
                     return Unauthorized(new { message = "Không xác định được người dùng hiện tại." });
                 }
 
-                var newCourse = await _courseService.CreateCourseAsync(userId, request);
+                var newCourse = await _courseService.CreateAsync(request, userId);
                 // Trả về 201 Created
                 return StatusCode(201, newCourse);
             }
@@ -92,18 +99,18 @@ namespace courses_buynsell_api.Controllers
             }
         }
 
-        // PUT: /Course/{id}
+        // PUT: api/Course/{id}
         // Cập nhật khóa học (Chỉ Seller tạo ra nó mới được)
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateCourse(int id, [FromForm] UpdateCourseDto request)
         {
             try
             {
-                int userId = HttpContext.Items["UserId"] as int? ?? -1;
+                int userId = int.Parse(User.FindFirst("id")!.Value);
 
-                // Gọi service, service sẽ check xem userId này có phải chủ khóa học không
-                var updatedCourse = await _courseService.UpdateCourseAsync(id, userId, request);
-                return Ok(updatedCourse);
+                var updated = await _courseService.UpdateAsync(id, request, userId);
+                if (updated == null) return NotFound();
+                return Ok(updated);
             }
             catch (NotFoundException ex)
             {
@@ -123,7 +130,7 @@ namespace courses_buynsell_api.Controllers
             }
         }
 
-        // DELETE: /Course/{id}
+        // DELETE: api/Course/{id}
         // Xóa khóa học (Chính chủ Seller mới được xóa)
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteCourse(int id)
@@ -152,16 +159,16 @@ namespace courses_buynsell_api.Controllers
             }
         }
 
-        // PUT: /Course/{id}/Approve
+        // PUT: api/Course/{courseId}/approve
         // Admin duyệt khóa học
         [Authorize(Roles = "Admin")]
-        [HttpPut("{id}/Approve")]
-        public async Task<IActionResult> ApproveCourse(int id)
+        [HttpPut("{courseId:int}/approve")]
+        public async Task<IActionResult> ApproveCourse(int courseId)
         {
             try
             {
-                await _courseService.ApproveCourseAsync(id);
-                return Ok(new { message = "Đã duyệt khóa học thành công." });
+                await _courseService.ApproveCourseAsync(courseId);
+                return NoContent();
             }
             catch (NotFoundException ex)
             {
@@ -173,9 +180,10 @@ namespace courses_buynsell_api.Controllers
             }
         }
 
-        // GET: /Course/MyCourses
+        // GET: api/Course/
         // Lấy danh sách khóa học do user hiện tại tạo (Dashboard của Seller)
-        [HttpGet("MyCourses")]
+        [HttpGet("Course")]
+        [Authorize(Roles = "Seller")]
         public async Task<IActionResult> GetMyCourses(
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10)

@@ -28,7 +28,7 @@ public class AuthController : ControllerBase
         // User cần verify email trước khi login
         return Ok(new
         {
-            message = "Registration successful. Please check your email to verify your account.",
+            message = "Đăng ký tài khoản thành công. Vui lòng kiểm tra email để xác nhận tài khoản của bạn.",
             email = result.Email,
             fullName = result.FullName,
             role = result.Role
@@ -121,7 +121,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> CheckOTP(CheckOTPDto dto)
     {
         await _authService.CheckOTPAsync(dto.Email, dto.OTP);
-        return Ok(new { message = "OTP is valid" });
+        return Ok(new { message = "OTP không hợp lệ." });
     }
 
     [HttpPost("reset-password")]
@@ -143,7 +143,7 @@ public class AuthController : ControllerBase
             Path = "/"
         });
 
-        return Ok(new { message = "Logged out successfully" });
+        return Ok(new { message = "Đăng xuất thành công" });
     }
 
     //[Authorize]

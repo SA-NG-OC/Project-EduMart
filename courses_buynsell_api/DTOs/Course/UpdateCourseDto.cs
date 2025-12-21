@@ -4,7 +4,7 @@ namespace courses_buynsell_api.DTOs.Course;
 
 public class UpdateCourseDto
 {
-    [Required] public string? Title { get; set; } = string.Empty;
+    public string? Title { get; set; }
     public string? Description { get; set; }
     [Range(0, double.MaxValue)] public decimal? Price { get; set; }
     public string? Level { get; set; }
@@ -12,8 +12,6 @@ public class UpdateCourseDto
     public IFormFile? Image { get; set; }
     public int? DurationHours { get; set; }
     public int? CategoryId { get; set; }
-    
-    public List<CourseContentDto>? CourseContents { get; set; }
-    public List<SkillTargetDto>? CourseSkills { get; set; }
-    public List<TargetLearnerDto>? TargetLearners { get; set; }
+    public bool DeleteImage { get; set; } = false;
+    public string? CourseLecture { get; set; }
 }
