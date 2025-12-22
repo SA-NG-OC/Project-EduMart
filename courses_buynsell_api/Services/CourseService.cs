@@ -15,15 +15,22 @@ namespace courses_buynsell_api.Services
         private readonly AppDbContext _context;
         private readonly IImageService imageService;
         private readonly INotificationService notificationService;
-        public CourseService(AppDbContext context, IImageService imageService, INotificationService notificationService)
+        private readonly IHistoryService _historyService;
+
+        public CourseService(
+            AppDbContext context,
+            IImageService imageService,
+            INotificationService notificationService,
+            IHistoryService historyService) 
         {
             _context = context;
             this.imageService = imageService;
             this.notificationService = notificationService;
+            _historyService = historyService; 
         }
+
         public async Task ApproveCourseAsync(int courseId)
         {
-            // 1. Tìm khóa học trong database
             var course = await _context.Courses.FindAsync(courseId);
 
             if (course == null)
@@ -36,11 +43,9 @@ namespace courses_buynsell_api.Services
                 return;
             }
 
-            // 4. Cập nhật trạng thái
             course.IsApproved = true;
-            course.UpdatedAt = DateTime.UtcNow; // Cập nhật thời gian sửa đổi
+            course.UpdatedAt = DateTime.UtcNow;
 
-            // 5. Lưu thay đổi
             await _context.SaveChangesAsync();
         }
 
@@ -61,7 +66,6 @@ namespace courses_buynsell_api.Services
                 IsApproved = false,
                 IsRestricted = false,
                 CourseLecture = dto.CourseLecture
-
             };
 
             if (dto.CourseContents != null)
@@ -99,7 +103,7 @@ namespace courses_buynsell_api.Services
 
             await notificationService.CreateNotificationAsync(new CreateNotificationDto
             {
-                SellerId = userId, // Gửi chính người tạo (Seller)
+                SellerId = userId,
                 Message = notificationMessage
             });
 
@@ -117,7 +121,6 @@ namespace courses_buynsell_api.Services
                 throw new NotFoundException($"Không tìm thấy khóa học với ID: {courseId}");
             }
 
-            // Kiểm tra quyền sở hữu: Chỉ người tạo ra khóa học mới được xóa
             if (course.SellerId != userId)
             {
                 throw new UnauthorizedException("Bạn không có quyền xóa khóa học này.");
@@ -209,7 +212,6 @@ namespace courses_buynsell_api.Services
             };
         }
 
-
         public async Task<CourseDetailDto?> GetByIdAsync(int id, int userId)
         {
             var course = await _context.Courses
@@ -262,10 +264,21 @@ namespace courses_buynsell_api.Services
                 return result;
             }
 
+            try
+            {
+                await _historyService.AddToHistoryAsync(userId, id);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error saving history: {ex.Message}");
+            }
+            // ----------------------------------------------------
+
             if (user.Role.Equals("Buyer") && (!course.IsApproved || course.IsRestricted)) return null;
 
             if (user.Role.Equals("Admin") || course.Enrollments.Any(e => e.BuyerId == userId) || course.SellerId == userId)
                 result.CourseLecture = course.CourseLecture ?? "No lecture found";
+
             Console.WriteLine($"Added course lecture with value {result.CourseLecture}");
             return result;
         }
@@ -342,5 +355,4 @@ namespace courses_buynsell_api.Services
             return await GetByIdAsync(entity.Id, sellerId);
         }
     }
-
 }
