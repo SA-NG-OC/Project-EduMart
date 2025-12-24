@@ -272,6 +272,9 @@ namespace courses_buynsell_api.Migrations
                     b.Property<DateTime>("EnrollAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int?>("Rating")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("BuyerId");

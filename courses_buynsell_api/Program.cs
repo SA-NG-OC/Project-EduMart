@@ -199,6 +199,7 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IImageService, ImageService>();
 builder.Services.AddScoped<ICartService, CartService>();
+builder.Services.AddScoped<IHistoryService, HistoryService>();
 // ⭐ Thêm ChatService - QUAN TRỌNG!
 builder.Services.AddScoped<IChatService, ChatService>();
 

@@ -10,7 +10,6 @@ public class Enrollment
     public int Id { get; set; }
     [Required] 
     public DateTime EnrollAt { get; set; }
-
     public int BuyerId { get; set; }
     public User? Buyer { get; set; }
     public int CourseId { get; set; }
