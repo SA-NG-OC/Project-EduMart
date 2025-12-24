@@ -18,6 +18,7 @@ public class CategoryController : ControllerBase
     }
     [HttpGet]
     //[Authorize(Roles = "Admin, Seller")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetAllCategories()
     {
         try

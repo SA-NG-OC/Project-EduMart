@@ -11,14 +11,17 @@ public class Conversation
 
     [Required]
     public int CourseId { get; set; }
+
     public Course? Course { get; set; }
 
     [Required]
     public int BuyerId { get; set; }
+
     public User? Buyer { get; set; }
 
     [Required]
     public int SellerId { get; set; }
+
     public User? Seller { get; set; }
 
     [Required]
@@ -28,6 +31,9 @@ public class Conversation
 
     [Required]
     public bool IsVisible { get; set; } = true;
+
+    [Required]
+    public bool IsBlock { get; set; } = false;
 
     public ICollection<Message>? Messages { get; set; }
 }

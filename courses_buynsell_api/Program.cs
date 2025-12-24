@@ -7,6 +7,7 @@ using courses_buynsell_api.Hubs;
 using courses_buynsell_api.Interfaces;
 using courses_buynsell_api.Middlewares;
 using courses_buynsell_api.Services;
+using courses_buynsell_api.Services.Implements;
 using DotNetEnv;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
@@ -202,6 +203,8 @@ builder.Services.AddScoped<ICartService, CartService>();
 builder.Services.AddScoped<IHistoryService, HistoryService>();
 // ⭐ Thêm ChatService - QUAN TRỌNG!
 builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddScoped<ICheckoutService, CheckoutService>();
+builder.Services.AddScoped<IBlockService, BlockService>();
 
 // Đăng ký Memory Cache
 builder.Services.AddMemoryCache();

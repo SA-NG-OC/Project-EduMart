@@ -25,9 +25,21 @@ public class AppDbContext : DbContext
     public DbSet<Conversation> Conversations { get; set; }
     public DbSet<Message> Messages { get; set; }
     public DbSet<History> Histories { get; set; }
+    public DbSet<Block> Blocks { get; set; }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<Block>(entity =>
+        {
+            entity.HasOne(b => b.Seller)
+                .WithMany()
+                .HasForeignKey(b => b.SellerId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.Property(b => b.BlockedUserIds)
+                .HasColumnType("integer[]");
+        });
 
         modelBuilder.Entity<Conversation>()
         .Property(c => c.IsVisible)
