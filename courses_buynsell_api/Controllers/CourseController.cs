@@ -3,6 +3,7 @@ using courses_buynsell_api.Exceptions;
 using courses_buynsell_api.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace courses_buynsell_api.Controllers
 {
@@ -86,7 +87,6 @@ namespace courses_buynsell_api.Controllers
                 }
 
                 var newCourse = await _courseService.CreateAsync(request, userId);
-                // Trả về 201 Created
                 return StatusCode(201, newCourse);
             }
             catch (BadRequestException ex)
@@ -142,7 +142,6 @@ namespace courses_buynsell_api.Controllers
                 // Gọi service để xóa
                 await _courseService.DeleteCourseAsync(id, userId);
 
-                // Trả về 204 No Content khi xóa thành công
                 return NoContent();
             }
             catch (NotFoundException ex)
@@ -198,6 +197,146 @@ namespace courses_buynsell_api.Controllers
             {
                 return StatusCode(500, new { message = ex.Message });
             }
+        }
+
+        // POST: api/Course/{courseId}/contents
+        // Thêm nội dung khóa học
+        [HttpPost("{courseId}/contents")]
+        public async Task<IActionResult> AddContent(int courseId, [FromBody] CourseContentDto input)
+        {
+            try
+            {
+                int userId = int.Parse(User.FindFirst("id")!.Value);
+                await _courseService.AddCourseContentAsync(courseId, userId, input);
+                return Ok();
+            }
+            catch (NotFoundException ex) { return NotFound(new { message = ex.Message }); }
+            catch (UnauthorizedException ex) { return Unauthorized(new { message = ex.Message }); }
+            catch (Exception ex) { return StatusCode(500, new { message = ex.Message }); }
+        }
+
+        // DELETE: api/Course/{courseId}/contents/{contentId}
+        // Xóa nội dung khóa học
+        [HttpDelete("{courseId}/contents/{contentId}")]
+        public async Task<IActionResult> DeleteContent(int courseId, int contentId)
+        {
+            try
+            {
+                int userId = int.Parse(User.FindFirst("id")!.Value);
+                await _courseService.DeleteCourseContentAsync(courseId, contentId, userId);
+                return NoContent(); // 204
+            }
+            catch (NotFoundException ex) { return NotFound(new { message = ex.Message }); }
+            catch (UnauthorizedException ex) { return Unauthorized(new { message = ex.Message }); }
+            catch (BadRequestException ex) { return BadRequest(new { message = ex.Message }); } // Content ko thuộc Course
+            catch (Exception ex) { return StatusCode(500, new { message = ex.Message }); }
+        }
+
+        // POST: api/Course/{courseId}/skills
+        // Thêm kỹ năng cho khóa học
+        [HttpPost("{courseId}/skills")]
+        public async Task<IActionResult> AddSkill(int courseId, [FromBody] SkillTargetDto input)
+        {
+            try
+            {
+                int userId = int.Parse(User.FindFirst("id")!.Value);
+                await _courseService.AddCourseSkillAsync(courseId, userId, input);
+                return Ok();
+            }
+            catch (Exception ex) { return StatusCode(500, new { message = ex.Message }); }
+        }
+
+        // DELETE: api/Course/{courseId}/skills/{skillId}
+        // Xóa kỹ năng khỏi khóa học
+        [HttpDelete("{courseId}/skills/{skillId}")]
+        public async Task<IActionResult> DeleteSkill(int courseId, int skillId)
+        {
+            try
+            {
+                int userId = int.Parse(User.FindFirst("id")!.Value);
+                await _courseService.DeleteCourseSkillAsync(courseId, skillId, userId);
+                return NoContent();
+            }
+            catch (Exception ex) { return StatusCode(500, new { message = ex.Message }); }
+        }
+
+        //  POST: api/Course/{courseId}/target-learners
+        // Thêm đối tượng học viên cho khóa học
+        [HttpPost("{courseId}/target-learners")]
+        public async Task<IActionResult> AddTargetLearner(int courseId, [FromBody] SkillTargetDto input)
+        {
+            try
+            {
+                int userId = int.Parse(User.FindFirst("id")!.Value);
+                await _courseService.AddTargetLearnerAsync(courseId, userId, input);
+                return Ok();
+            }
+            catch (Exception ex) { return StatusCode(500, new { message = ex.Message }); }
+        }
+
+        // DELETE: api/Course/{courseId}/target-learners/{learnerId}
+        // Xóa đối tượng học viên khỏi khóa học
+        [HttpDelete("{courseId}/target-learners/{learnerId}")]
+        public async Task<IActionResult> DeleteTargetLearner(int courseId, int learnerId)
+        {
+            try
+            {
+                int userId = int.Parse(User.FindFirst("id")!.Value);
+                await _courseService.DeleteTargetLearnerAsync(courseId, learnerId, userId);
+                return NoContent();
+            }
+            catch (Exception ex) { return StatusCode(500, new { message = ex.Message }); }
+        }
+
+        // PUT: api/Course/{courseId}/restrict
+        // Hạn chế/Bỏ hạn chế khóa học 
+        [HttpPut("{courseId}/restrict")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> ToggleRestrict(int courseId)
+        {
+            try
+            {
+                await _courseService.ToggleRestrictionAsync(courseId);
+                return Ok(new { message = "Restriction status updated" });
+            }
+            catch (NotFoundException ex) { return NotFound(new { message = ex.Message }); }
+            catch (Exception ex) { return StatusCode(500, new { message = ex.Message }); }
+        }
+
+        // GET: api/Course/{courseId}/study
+        // Lấy link học tập cho khóa học đã mua
+        [HttpGet("{courseId}/study")]
+        public async Task<IActionResult> GetStudyLink(int courseId)
+        {
+            try
+            {
+                int userId = int.Parse(User.FindFirst("id")!.Value);
+                var role = User.FindFirst(ClaimTypes.Role)?.Value ?? "";
+
+                var link = await _courseService.GetStudyLinkAsync(courseId, userId, role);
+
+                if (link == "No lecture found") return Ok("No lecture found"); 
+
+                return Ok(new { url = link });
+            }
+            catch (UnauthorizedException ex) { return Unauthorized(new { message = ex.Message }); }
+            catch (Exception ex) { return StatusCode(500, new { message = ex.Message }); }
+        }
+
+        // PUT: api/Course/{courseId}/study
+        // Cập nhật link học tập cho khóa học đã mua
+        [HttpPut("{courseId}/study")]
+        public async Task<IActionResult> UpdateStudyLink(int courseId, [FromBody] StudyLinkDto? input)
+        {
+            try
+            {
+                int userId = int.Parse(User.FindFirst("id")!.Value);
+                await _courseService.UpdateStudyLinkAsync(courseId, userId, input?.Url);
+                return Ok();
+            }
+            catch (UnauthorizedException ex) { return Unauthorized(new { message = ex.Message }); } 
+            catch (NotFoundException ex) { return NotFound(new { message = ex.Message }); }
+            catch (Exception ex) { return StatusCode(500, new { message = ex.Message }); }
         }
     }
 }

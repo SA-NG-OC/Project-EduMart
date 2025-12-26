@@ -13,9 +13,11 @@ namespace courses_buynsell_api.Controllers
     public class UserController : ControllerBase
     {
         private readonly IUserService _userService;
-        public UserController(IUserService userService)
+        private readonly ICourseService _courseService;
+        public UserController(IUserService userService, ICourseService courseService)
         {
             _userService = userService;
+            _courseService = courseService;
         }
 
         // GET: /User
@@ -249,11 +251,22 @@ namespace courses_buynsell_api.Controllers
         [Authorize(Roles = "Admin, Buyer")]
         public async Task<IActionResult> GetCourses([FromQuery] CourseQueryParameters queryParameters)
         {
-            var userId = int.Parse(User.FindFirst("id")!.Value);
-            if (((queryParameters.IncludeRestricted ?? false) || (queryParameters.IncludeUnapproved ?? false)))
-                return BadRequest();
-            var result = await _userService.GetMyCourses(queryParameters, userId);
-            return Ok(result);
+            try
+            {
+                var userId = int.Parse(User.FindFirst("id")!.Value);
+
+                if (((queryParameters.IncludeRestricted ?? false) || (queryParameters.IncludeUnapproved ?? false)))
+                    return BadRequest();
+
+                // GỌI HÀM MỚI BÊN COURSE SERVICE
+                var result = await _courseService.GetPurchasedCoursesAsync(userId, queryParameters);
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
 
     }
