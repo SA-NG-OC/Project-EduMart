@@ -354,5 +354,200 @@ namespace courses_buynsell_api.Services
             await _context.SaveChangesAsync();
             return await GetByIdAsync(entity.Id, sellerId);
         }
+
+        // Thêm content
+        public async Task AddCourseContentAsync(int courseId, int userId, CourseContentDto input)
+        {
+            var course = await _context.Courses.FindAsync(courseId);
+            if (course == null) throw new NotFoundException("Course not found");
+            if (course.SellerId != userId) throw new UnauthorizedException("Unauthorized");
+
+            var content = new CourseContent
+            {
+                CourseId = courseId,
+                Title = input.Title,
+                Description = input.Description
+            };
+            _context.CourseContents.Add(content);
+            await _context.SaveChangesAsync();
+        }
+
+        // Xóa content
+        public async Task DeleteCourseContentAsync(int courseId, int contentId, int userId)
+        {
+            var content = await _context.CourseContents.Include(c => c.Course).FirstOrDefaultAsync(c => c.Id == contentId);
+            if (content == null) throw new NotFoundException("Content not found");
+
+            if (content.CourseId != courseId) throw new BadRequestException("Content does not belong to this course");
+            if (content.Course.SellerId != userId) throw new UnauthorizedException("Unauthorized");
+
+            _context.CourseContents.Remove(content);
+            await _context.SaveChangesAsync();
+        }
+
+        // Thêm skill
+        public async Task AddCourseSkillAsync(int courseId, int userId, SkillTargetDto input)
+        {
+            var course = await _context.Courses.FindAsync(courseId);
+            if (course == null) throw new NotFoundException("Course not found");
+            if (course.SellerId != userId) throw new UnauthorizedException("Unauthorized");
+
+            var skill = new CourseSkill
+            {
+                CourseId = courseId,
+                Name = input.Description
+            };
+            _context.CourseSkills.Add(skill);
+            await _context.SaveChangesAsync();
+        }
+
+        // Xóa skill
+        public async Task DeleteCourseSkillAsync(int courseId, int skillId, int userId)
+        {
+            var skill = await _context.CourseSkills.Include(c => c.Course).FirstOrDefaultAsync(c => c.Id == skillId);
+            if (skill == null) throw new NotFoundException("Skill not found");
+            if (skill.CourseId != courseId) throw new BadRequestException("Skill does not belong to this course");
+            if (skill.Course.SellerId != userId) throw new UnauthorizedException("Unauthorized");
+
+            _context.CourseSkills.Remove(skill);
+            await _context.SaveChangesAsync();
+        }
+
+        // Thêm target learner
+        public async Task AddTargetLearnerAsync(int courseId, int userId, SkillTargetDto input)
+        {
+            var course = await _context.Courses.FindAsync(courseId);
+            if (course == null) throw new NotFoundException("Course not found");
+            if (course.SellerId != userId) throw new UnauthorizedException("Unauthorized");
+
+            var learner = new TargetLearner
+            {
+                CourseId = courseId,
+                Description = input.Description
+            };
+            _context.TargetLearners.Add(learner);
+            await _context.SaveChangesAsync();
+        }
+
+        // Xóa target learner
+        public async Task DeleteTargetLearnerAsync(int courseId, int learnerId, int userId)
+        {
+            var item = await _context.TargetLearners.Include(c => c.Course).FirstOrDefaultAsync(c => c.Id == learnerId);
+            if (item == null) throw new NotFoundException("Target learner not found");
+            if (item.CourseId != courseId) throw new BadRequestException("Item does not belong to this course");
+            if (item.Course.SellerId != userId) throw new UnauthorizedException("Unauthorized");
+
+            _context.TargetLearners.Remove(item);
+            await _context.SaveChangesAsync();
+        }
+
+        // Lấy khóa học đã mua
+        public async Task<PagedResult<CourseListItemUserDto>> GetPurchasedCoursesAsync(int userId, CourseQueryParameters q)
+        {
+            var query = _context.Enrollments
+                .Where(e => e.BuyerId == userId)
+                .Include(e => e.Course)
+                .ThenInclude(c => c.Category) // Include category để map
+                .Select(e => new { e.Course, e.EnrollAt })
+                .AsQueryable();
+
+            // Áp dụng Filter (tìm kiếm trong danh sách đã mua)
+            if (!string.IsNullOrWhiteSpace(q.Q))
+            {
+                var text = q.Q.Trim();
+                query = query.Where(x => x.Course.Title.Contains(text) || x.Course.Description.Contains(text));
+            }
+            if (q.CategoryId.HasValue)
+                query = query.Where(x => x.Course.CategoryId == q.CategoryId);
+            if (q.SellerId.HasValue)
+                query = query.Where(x => x.Course.SellerId == q.SellerId);
+            if (q.MinPrice.HasValue)
+                query = query.Where(x => x.Course.Price >= q.MinPrice.Value);
+            if (q.MaxPrice.HasValue)
+                query = query.Where(x => x.Course.Price <= q.MaxPrice.Value);
+            if (!string.IsNullOrWhiteSpace(q.Level))
+                query = query.Where(x => x.Course.Level == q.Level);
+
+            // Sort
+            query = q.SortBy?.ToLower() switch
+            {
+                "price_asc" => query.OrderBy(x => x.Course.Price),
+                "price_desc" => query.OrderByDescending(x => x.Course.Price),
+                "rating_desc" => query.OrderByDescending(x => x.Course.AverageRating),
+                "popular" => query.OrderByDescending(x => x.Course.TotalPurchased),
+                _ => query.OrderByDescending(x => x.EnrollAt) // Mặc định sắp xếp theo ngày mua
+            };
+
+            var total = await query.LongCountAsync();
+            var items = await query
+                .Skip((q.Page - 1) * q.PageSize)
+                .Take(q.PageSize)
+                .Select(x => new CourseListItemUserDto
+                {
+                    Id = x.Course.Id,
+                    Title = x.Course.Title,
+                    Price = x.Course.Price,
+                    Level = x.Course.Level,
+                    ImageUrl = x.Course.ImageUrl,
+                    AverageRating = x.Course.AverageRating,
+                    TotalPurchased = x.Course.TotalPurchased,
+                    SellerId = x.Course.SellerId,
+                    TeacherName = x.Course.TeacherName,
+                    Description = x.Course.Description,
+                    DurationHours = x.Course.DurationHours,
+                    CategoryName = x.Course.Category.Name,
+                    IsApproved = x.Course.IsApproved,
+                    IsRestricted = x.Course.IsRestricted,
+                    EnrollmentDate = x.EnrollAt
+                })
+                .ToListAsync();
+
+            return new PagedResult<CourseListItemUserDto>
+            {
+                Page = q.Page,
+                PageSize = q.PageSize,
+                TotalCount = total,
+                Items = items
+            };
+        }
+
+        // RESTRICT
+        public async Task ToggleRestrictionAsync(int courseId)
+        {
+            var course = await _context.Courses.FindAsync(courseId);
+            if (course == null) throw new NotFoundException("Course not found");
+
+            course.IsRestricted = !course.IsRestricted;
+            await _context.SaveChangesAsync();
+        }
+
+        // STUDY LINK
+        public async Task<string> GetStudyLinkAsync(int courseId, int userId, string userRole)
+        {
+            var course = await _context.Courses.FindAsync(courseId);
+            if (course == null) return "No lecture found";
+
+            bool isOwner = course.SellerId == userId;
+            bool isAdmin = userRole == "Admin";
+            bool isStudent = await _context.Enrollments.AnyAsync(e => e.CourseId == courseId && e.BuyerId == userId);
+
+            if (isOwner || isAdmin || isStudent)
+            {
+                return string.IsNullOrEmpty(course.CourseLecture) ? "No lecture found" : course.CourseLecture;
+            }
+
+            throw new UnauthorizedException("Unauthorized to access study materials");
+        }
+
+        public async Task UpdateStudyLinkAsync(int courseId, int userId, string? newUrl)
+        {
+            var course = await _context.Courses.FindAsync(courseId);
+            if (course == null) throw new NotFoundException("Course not found");
+
+            if (course.SellerId != userId) throw new UnauthorizedException("Only course owner can update lecture link");
+
+            course.CourseLecture = newUrl; 
+            await _context.SaveChangesAsync();
+        }
     }
 }

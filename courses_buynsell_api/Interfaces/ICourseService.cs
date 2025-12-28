@@ -26,5 +26,27 @@ namespace courses_buynsell_api.Interfaces
 
         // Lấy danh sách khóa học của chính người bán (My Courses)
         Task<PagedResult<CourseListItemDto>> GetCoursesBySellerIdAsync(int sellerId, int page, int pageSize);
+
+        // Quản lý Nội dung 
+        Task AddCourseContentAsync(int courseId, int userId, CourseContentDto input);
+        Task DeleteCourseContentAsync(int courseId, int contentId, int userId);
+
+        // Quản lý Kỹ năng 
+        Task AddCourseSkillAsync(int courseId, int userId, SkillTargetDto input);
+        Task DeleteCourseSkillAsync(int courseId, int skillId, int userId);
+
+        // Quản lý Đối tượng học viên 
+        Task AddTargetLearnerAsync(int courseId, int userId, SkillTargetDto input);
+        Task DeleteTargetLearnerAsync(int courseId, int learnerId, int userId);
+
+        // Khóa học đã mua 
+        Task<PagedResult<CourseListItemUserDto>> GetPurchasedCoursesAsync(int userId, CourseQueryParameters query);
+
+        // Hạn chế/Bỏ hạn chế 
+        Task ToggleRestrictionAsync(int courseId);
+
+        // Quản lý Link học 
+        Task<string> GetStudyLinkAsync(int courseId, int userId, string userRole);
+        Task UpdateStudyLinkAsync(int courseId, int userId, string? newUrl);
     }
 }
